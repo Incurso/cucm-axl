@@ -1,0 +1,55 @@
+CUCM:
+  HOST: callmanager.example.com
+  VERSION: 12.5
+  PROTOCOL: https
+  USER: example-axl-user
+  PASS: example password
+
+CHECK_LINE_MASK:
+  INCLUDED_DEVICES:
+    # List of physical devices
+    PHYSICAL:
+      - ATA
+      - SEP
+    # List of softphones
+    SOFT:
+      - BOT
+      - CSF
+      - TAB
+      - TCT
+
+  PREFIX: 555
+  COUNTRY_CODE: 354
+  # Standard directory number length
+  DN_LENGTH: 4
+  # When line number is hidden
+  DN_MAIN: 1000
+
+CLEANUP_UNREGISTERED_DEVICES:
+  # Cut-off mark in days
+  CUTOFF_MARK: 90
+  INCLUDED_DEVICES:
+    # List of physical devices
+    PHYSICAL:
+      - ATA
+      - SEP
+    # List of softphones
+    SOFT:
+
+  EXCLUDED:
+    # List of excluded descriptions
+    DESCRIPTIONS:
+      - Example description
+
+      # List of excluded devices
+    DEVICES:
+
+      # List of excluded directory numbers
+    DN:
+
+      # List of excluded models
+    MODELS:
+      - Cisco 8811
+      - Cisco 8845
+      - Cisco Webex Room Kit
+      - Cisco Webex Room Kit Mini
