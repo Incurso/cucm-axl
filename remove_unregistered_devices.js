@@ -14,10 +14,11 @@ const args = parseArgs(process.argv.slice(2))
 if (args.help) {
   console.log(`Usage: node ${path.basename(process.argv.slice(1,2).toString())} [OPTION]\n`)
   console.log(`${'--config <inputfilename>'.padEnd(32)} Load YAML config file.`)
-  console.log(`${'--cutoffmark'.padEnd(32)} Cut-off mark in days.`)
-  console.log(`${'--deleteall'.padEnd(32)} Deletes all devices found to be expired.`)
-  console.log(`${'--includeddevices <ATA,SEP>'.padEnd(32)} Include devices with name prefix.`)
+  console.log(`${'--cutoff-mark'.padEnd(32)} Cut-off mark in days.`)
+  console.log(`${'--delete-all'.padEnd(32)} Deletes all devices found to be expired.`)
+  console.log(`${'--included-phone-prefixes <ATA,SEP>'.padEnd(32)} Include devices with name prefix.`)
   console.log(`${'--help'.padEnd(32)} Displays this help and exit.`)
+  console.log(`${'--verbose'.padEnd(32)} Enables verbose output`)
   console.log('')
   process.exit(0)
 }
@@ -28,7 +29,21 @@ const config = yaml.load(fs.readFileSync(path.resolve(args.config || './config/c
 const axl = new AXL()
 const prompt = new Prompt({ sigint: true })
 
+// Check if we want to delete all devices from args
+let deleteAllDevices = args['delete-all'] ? true : false
+const verbose = args.verbose ? true : false
+
+// Assign values from config
+const phonePrefixes = args['included-phone-prefixes'] ? args.includeddevices.split(',') : config.INCLUDED_DEVICES || []
+const allowedPhonePrefixes = Object.keys(phonePrefixes).map((key) => phonePrefixes[key]).flat()
+const excludedDescriptions = config.EXCLUDED.DESCRIPTIONS || []
+const excludedDevices = config.EXCLUDED.DEVICES || []
+const excludedDN = config.EXCLUDED.DN || []
+const excludedModels = config.EXCLUDED.MODELS || []
+const cutoffMark = args['cutoff-mark'] || config.CUTOFF_MARK
+
 // Query that finds every device in the call manager and returns when it was last used
+// Had to use between as less than was always throwing an error
 const query = `
   SELECT
     d.pkid,
@@ -45,30 +60,26 @@ const query = `
     INNER JOIN devicenumplanmap as dnp ON dnp.fkdevice = d.pkid
     INNER JOIN numplan np ON np.pkid = dnp.fknumplan
     LEFT JOIN typerisstatus AS trs ON trs.enum = rd.tkrisstatus
+  WHERE rd.lastseen != 0
+    AND rd.lastseen BETWEEN 0 AND ${Math.round((Date.now() / 1000) - (cutoffMark * 24 * 60 * 60))}
   ORDER BY rd.lastseen
 `
+
+if (verbose) console.log(query)
 
 // Execute Query
 const devices = await axl.executeSQLQuery(query)
   .catch(err => { throw err })
 
-console.log('Gotten devices.')
-
-// Assign values from config
-const phoneTypes = args.includeddevices ? args.includeddevices.split(',') : config.INCLUDED_DEVICES || []
-const allowedPhoneTypes = Object.keys(phoneTypes).map((key) => phoneTypes[key]).flat()
-const excludedDescriptions = config.EXCLUDED.DESCRIPTIONS || []
-const excludedDevices = config.EXCLUDED.DEVICES || []
-const excludedDN = config.EXCLUDED.DN || []
-const excludedModels = config.EXCLUDED.MODELS || []
-const cutoffMark = args.cutoffmark || config.CUTOFF_MARK
+console.log(`Gotten ${devices.length} devices.`)
+if (verbose) console.log(Object.keys(devices[0]), devices[0].lastseen)
 
 // Remove everything except what we want
 const unregistered_devices = devices
   // Exclude devices that have never registered
   .filter((device) => device.lastseen !== '0')
   // Only include devices with allowed PREFIX
-  .filter((device) => allowedPhoneTypes.includes(device.name.slice(0,3)))
+  .filter((device) => allowedPhonePrefixes.includes(device.name.slice(0,3)))
   // Exclude devices by DESCRIPTION
   .filter((device) => !excludedDescriptions.includes(device.description))
   // Exclude devices by MODEL
@@ -97,9 +108,6 @@ if (unregistered_devices.length === 0) {
   process.exit(0)
 }
 
-// Check if we want to delete all devices from args
-let deleteAllDevices = args.deleteall ? true : false
-
 let deleteDevices = ''
 
 while (!deleteAllDevices && !deleteDevices.match(/^[yn]$/)) {
@@ -123,7 +131,7 @@ if (deleteAllDevices || deleteDevices.match(/^[y]$/)) {
     }
 
     // Check if user wants to delete all
-    deleteAllDevices = deleteDevice.match(/^[a]$/)
+    if (deleteDevice.match(/^[a]$/)) deleteAllDevices = true
     
     if (deleteAllDevices || deleteDevice.match(/^[y]$/)) {
       await axl.removePhone(device.pkid)
