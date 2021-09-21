@@ -39,12 +39,12 @@ export default class AXL {
       </soapenv:Envelope>
     `
 
-    console.log(`Executing: ${methodType}`)
+    //console.log(`Executing: ${methodType}`)
     const res = await axios.post('/axl/', soapBody)
       .catch((err) => { return err.response })
 
-    console.log(`Executed: ${methodType}`)
-    console.log(res)
+    //console.log(`Executed: ${methodType}`)
+    //console.log(res)
 
     const xmljsOptions = {
       compact: true,
