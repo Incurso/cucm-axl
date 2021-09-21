@@ -34,7 +34,7 @@ const phoneTypes = config.INCLUDED_DEVICES
 const allowedPhoneTypes = Object.keys(phoneTypes).map((key) => phoneTypes[key]).flat()
 
 // Get a list of all devices in Call Manager
-const phones = await axl.list('Phone', { name: '%' }, ['name', 'description', 'protocol'])
+const phones = await axl.list('Phone', { name: '%' }, ['name'])
 
 // Sort phones by name alphabeticaly
 phones.sort((a, b) => a.name > b.name ? 1 : -1)
@@ -139,4 +139,4 @@ for (const phone of phones) {
 progressBar.stop()
 
 console.log(`\n\nFound ${phones.length} phones`)
-console.log(count)
+console.log(JSON.stringify(count))
