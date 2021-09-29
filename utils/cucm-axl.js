@@ -6,6 +6,7 @@ import yaml from 'js-yaml'
 import axios from 'axios'
 import https from 'https'
 import xmljs from 'xml-js'
+import xml2js from 'xml2js'
 import parseArgs from 'minimist'
 
 const args = parseArgs(process.argv.slice(2))
@@ -23,8 +24,9 @@ axios.defaults.headers = {
 axios.defaults.httpsAgent = new https.Agent({ rejectUnauthorized: false }) // required to accept self-signed certificate
 
 export default class AXL {
-  async execute (method, returnType, content) {
-    const methodType = `${method}`
+  async execute (method, type, content) {
+    const methodType = method
+    const returnType = type.charAt(0).toLowerCase() + type.slice(1)
 
     const soapBody = `
       <soapenv:Envelope
@@ -43,9 +45,6 @@ export default class AXL {
     const res = await axios.post('/axl/', soapBody)
       .catch((err) => { return err.response })
 
-    //console.log(`Executed: ${methodType}`)
-    //console.log(res)
-
     const xmljsOptions = {
       compact: true,
       trim: true,
@@ -59,7 +58,11 @@ export default class AXL {
       }
     }
 
-    const soapenvBody = xmljs.xml2js(res.data, xmljsOptions)['soapenv:Envelope']['soapenv:Body']
+    //console.log(`Executed: ${methodType}`)  
+    //console.log(res.data)
+
+    //const soapenvBody = xmljs.xml2js(res.data, xmljsOptions)['soapenv:Envelope']['soapenv:Body']
+    const soapenvBody = await xml2js.parseStringPromise(res.data, { explicitArray: false }).then(data => data['soapenv:Envelope']['soapenv:Body'])
     const soapenvFault = soapenvBody['soapenv:Fault'] // Grab soap error if there is one
     const nsResponse = soapenvBody[`ns:${methodType}Response`]
 
@@ -67,10 +70,10 @@ export default class AXL {
       console.log('Error:', soapenvFault.faultstring)
       throw Object.assign(new Error(soapenvFault.faultstring), { status: res.status })
     } else {
-      const response = nsResponse.return[returnType.toLowerCase()] || []
+      const response = nsResponse.return[returnType] || []
 
       // If method is list, always return an array
-      return method === 'list' && response.constructor === Object ? [response] : response
+      return method === `list${type}` && response.constructor === Object ? [response] : response
     }
   }
 
@@ -158,10 +161,19 @@ export default class AXL {
   }
 
   updatePhone (uuid, payload) {
+    /*
     const content = `
       <uuid>${uuid}</uuid>
       ${xmljs.json2xml(payload, { compact: true, ignoreComment: true, spaces: 4 })}
     `
+    */
+    const builder = new xml2js.Builder({ headless: true })
+
+    const content = `
+      <uuid>${uuid}</uuid>
+      ${builder.buildObject(payload)}
+    `
+
     return this.execute('updatePhone', 'Phone', content)
   }
 
