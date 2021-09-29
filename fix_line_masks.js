@@ -52,7 +52,8 @@ for (const phone of phones) {
     continue
   }
 
-  const phone_details = await axl.get('Phone', { uuid: phone._attributes.uuid })
+  //console.log(phone)
+  const phone_details = await axl.get('Phone', { uuid: phone.$.uuid })
   
   const lines = Array.isArray(phone_details.lines.line) ? phone_details.lines.line : [phone_details.lines.line]
   //console.log(lines)
@@ -126,7 +127,7 @@ for (const phone of phones) {
 
     // Update devices with new e164Mask
     if (fixedLineCounter > 0) {
-      await axl.updatePhone(phone._attributes.uuid.slice(1, -1), { lines: phone_details.lines })
+      await axl.updatePhone(phone.$.uuid.slice(1, -1), { lines: phone_details.lines })
     }
   } else {
     count.noLline++
