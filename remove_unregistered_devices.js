@@ -13,12 +13,12 @@ const args = parseArgs(process.argv.slice(2))
 // Display help and exit if 
 if (args.help) {
   console.log(`Usage: node ${path.basename(process.argv.slice(1,2).toString())} [OPTION]\n`)
-  console.log(`${'--config <inputfilename>'.padEnd(32)} Load YAML config file.`)
-  console.log(`${'--cutoff-mark'.padEnd(32)} Cut-off mark in days.`)
-  console.log(`${'--delete-all'.padEnd(32)} Deletes all devices found to be expired.`)
-  console.log(`${'--included-phone-prefixes <ATA,SEP>'.padEnd(32)} Include devices with name prefix.`)
-  console.log(`${'--help'.padEnd(32)} Displays this help and exit.`)
-  console.log(`${'--verbose'.padEnd(32)} Enables verbose output`)
+  console.log(`${'--config <inputfilename>'.padEnd(35)} Load YAML config file.`)
+  console.log(`${'--cutoff-mark'.padEnd(35)} Cut-off mark in days.`)
+  console.log(`${'--help'.padEnd(35)} Displays this help and exit.`)
+  console.log(`${'--included-phone-prefixes <ATA,SEP>'.padEnd(35)} Include devices with name prefix.`)
+  console.log(`${'--remove-all'.padEnd(35)} Removes all devices found to be expired.`)
+  console.log(`${'--verbose'.padEnd(35)} Enables verbose output`)
   console.log('')
   process.exit(0)
 }
@@ -30,7 +30,7 @@ const axl = new AXL()
 const prompt = new Prompt({ sigint: true })
 
 // Check if we want to delete all devices from args
-let deleteAllDevices = args['delete-all'] ? true : false
+let removeAllDevices = args['remove-all'] ? true : false
 const verbose = args.verbose ? true : false
 
 // Assign values from config
@@ -108,35 +108,35 @@ if (unregistered_devices.length === 0) {
   process.exit(0)
 }
 
-let deleteDevices = ''
+let removeDevices = ''
 
-while (!deleteAllDevices && !deleteDevices.match(/^[yn]$/)) {
-  deleteDevices = prompt('Delete devices [y/N]: ', { value: 'N' }).toLowerCase()
+while (!removeAllDevices && !removeDevices.match(/^[yn]$/)) {
+  removeDevices = prompt('Remove devices [y/N]: ', { value: 'N' }).toLowerCase()
 
-  if (!deleteDevices.match(/^[yn]$/)) {
-    console.log(`Invalid input: ${deleteDevices}`)
+  if (!removeDevices.match(/^[yn]$/)) {
+    console.log(`Invalid input: ${removeDevices}`)
   }
 }
 
-if (deleteAllDevices || deleteDevices.match(/^[y]$/)) {
+if (removeAllDevices || removeDevices.match(/^[y]$/)) {
   for (const device of unregistered_devices) {
-    let deleteDevice = ''
+    let removeDevice = ''
 
-    while (!deleteAllDevices && !deleteDevice.match(/^[yna]$/)) {
-      deleteDevice = await prompt(`Delete ${device.name} [y/N/a]: `, { value: 'N' }).toLowerCase()
+    while (!removeAllDevices && !removeDevice.match(/^[yna]$/)) {
+      removeDevice = await prompt(`Remove ${device.name} [y/N/a]: `, { value: 'N' }).toLowerCase()
 
-      if (!deleteDevice.match(/^[yna]$/)) {
-        console.log(`Invalid input: ${deleteDevice}`)
+      if (!removeDevice.match(/^[yna]$/)) {
+        console.log(`Invalid input: ${removeDevice}`)
       }
     }
 
-    // Check if user wants to delete all
-    if (deleteDevice.match(/^[a]$/)) deleteAllDevices = true
+    // Check if user wants to remove all
+    if (removeDevice.match(/^[a]$/)) removeAllDevices = true
     
-    if (deleteAllDevices || deleteDevice.match(/^[y]$/)) {
+    if (removeAllDevices || removeDevice.match(/^[y]$/)) {
       await axl.removePhone(device.pkid)
 
-      console.log(`Deleted ${device.name}`)
+      console.log(`Removed ${device.name}`)
     }
   }
 }
