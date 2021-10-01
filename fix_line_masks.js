@@ -34,7 +34,7 @@ const phoneTypes = config.INCLUDED_DEVICES
 const allowedPhoneTypes = Object.keys(phoneTypes).map((key) => phoneTypes[key]).flat()
 
 // Get a list of all devices in Call Manager
-const phones = await axl.list('Phone', { name: '%' }, ['name'])
+const phones = await axl.list('Phone', { name: 'SEPF01D2D%' }, ['name'])
 
 // Sort phones by name alphabeticaly
 phones.sort((a, b) => a.name > b.name ? 1 : -1)
@@ -42,102 +42,115 @@ phones.sort((a, b) => a.name > b.name ? 1 : -1)
 // Start progress bar with defined length
 progressBar.start(phones.length, 0)
 
-for (const phone of phones) {
+for (const p of phones) {
   let fixedLineCounter = 0
   counter++
 
   // Check if prefix is valid
-  if (!allowedPhoneTypes.includes(phone.name.slice(0, 3))) {
+  if (!allowedPhoneTypes.includes(p.name.slice(0, 3))) {
     progressBar.increment()
     continue
   }
 
-  //console.log(phone)
-  const phone_details = await axl.get('Phone', { uuid: phone.$.uuid })
+  //console.log(p)
+  const phone = await axl.get('Phone', { uuid: p.$.uuid })
   
-  const lines = Array.isArray(phone_details.lines.line) ? phone_details.lines.line : [phone_details.lines.line]
+  // skip if phone has no lines
+  if (!phone.lines) {
+    count.noLine++
+
+    // Remove progress bar from line before we print updated e164Mask
+    process.stdout.clearLine()
+    process.stdout.cursorTo(0)
+
+    console.log(`\n${counter}/${phones.length} ${chalk.yellow(p.name)} has no lines`)
+
+    progressBar.increment()
+    continue
+  }
+
+  const lines = Array.isArray(phone.lines.line) ? phone.lines.line : [phone.lines.line]
   //console.log(lines)
 
-  if (lines) {
-    for (const line of lines) {
-      let e164Mask = typeof line.e164Mask === 'string' ? line.e164Mask : null
-      const pattern = line.dirn.pattern
+  for (const line of lines) {
+    let e164Mask = typeof line.e164Mask === 'string' ? line.e164Mask : null
+    const pattern = line.dirn.pattern
 
-      if (!e164Mask) {
-        // Line on phone contains no e164Mask
+    if (!e164Mask) {
+      // Line on phone contains no e164Mask
 
-        // Set e164Mask
-        line.e164Mask = e164MaskStandard
+      // Set e164Mask
+      line.e164Mask = e164MaskStandard
 
-        if (pattern.length > 4) {
-          // If pattern is longer than 4 digits we assume it is a special case and set the e164Mask to the main number
-          line.e164Mask = e164MaskHidden
-        }
+      if (pattern.length > 4) {
+        // If pattern is longer than 4 digits we assume it is a special case and set the e164Mask to the main number
+        line.e164Mask = e164MaskHidden
+      }
 
-        count.fixedNoMask++
-        fixedLineCounter++
+      count.fixedNoMask++
+      fixedLineCounter++
 
-        e164Mask = `${chalk.red('None')} -> ${chalk.green(line.e164Mask)}`
-      } else if (e164Mask.slice(0, -config.DN_LENGTH) === `${config.PREFIX}`) {
-        // Line on phone contains e164Mask that begins with PREFIX
+      e164Mask = `${chalk.red('None')} -> ${chalk.green(line.e164Mask)}`
+    } else if (e164Mask.slice(0, -config.DN_LENGTH) === `${config.PREFIX}`) {
+      // Line on phone contains e164Mask that begins with PREFIX
 
-        // Set e164Mask
-        line.e164Mask = `+${config.COUNTRY_CODE}${config.PREFIX}${line.e164Mask.slice(-config.DN_LENGTH)}`
+      // Set e164Mask
+      line.e164Mask = `+${config.COUNTRY_CODE}${config.PREFIX}${line.e164Mask.slice(-config.DN_LENGTH)}`
 
-        if (e164Mask.slice(-config.DN_LENGTH) === 'X'.repeat(config.DN_LENGTH)){
-          count.fixedPrefix++
+      if (e164Mask.slice(-config.DN_LENGTH) === 'X'.repeat(config.DN_LENGTH)){
+        count.fixedPrefix++
 
-          e164Mask = `${e164Mask} -> ${chalk.green(line.e164Mask)}`
-        } else {
-          count.fixedPrefixHidden++
-
-          e164Mask = `${chalk.cyan(e164Mask)} -> ${chalk.green(line.e164Mask)}`
-        }
-
-        fixedLineCounter++
-      } else if (e164Mask.slice(0, -config.DN_LENGTH) === `+${config.COUNTRY_CODE}${config.PREFIX}`) {
-        // Line on phone contains e164Mask that begins with + COUNTRY_CODE AND PREFIX
-        
-        if (e164Mask.slice(-config.DN_LENGTH) === 'X'.repeat(config.DN_LENGTH)){
-          count.correct++
-        } else {
-          count.correctHidden++
-
-          e164Mask = `${chalk.cyan(e164Mask)}`
-        }
+        e164Mask = `${e164Mask} -> ${chalk.green(line.e164Mask)}`
       } else {
-        // Set e164Mask
-        line.e164Mask = e164MaskStandard
+        count.fixedPrefixHidden++
 
-        count.fixedWrong++
-        fixedLineCounter++
-
-        e164Mask = `${chalk.yellow(e164Mask)} -> ${chalk.green(line.e164Mask)}`
+        e164Mask = `${chalk.cyan(e164Mask)} -> ${chalk.green(line.e164Mask)}`
       }
 
-      // Print if we are changing e164Mask
-      if (e164Mask.includes('->')) {
-        // Remove progress bar from line before we print updated e164Mask
-        process.stdout.clearLine()
-        process.stdout.cursorTo(0)
-        
-        console.log(`${counter}/${phones.length} ${phone.name} ${pattern} ${e164Mask}`)
+      fixedLineCounter++
+    } else if (e164Mask.slice(0, -config.DN_LENGTH) === `+${config.COUNTRY_CODE}${config.PREFIX}`) {
+      // Line on phone contains e164Mask that begins with + COUNTRY_CODE AND PREFIX
+      
+      if (e164Mask.slice(-config.DN_LENGTH) === 'X'.repeat(config.DN_LENGTH)){
+        count.correct++
+      } else {
+        count.correctHidden++
+
+        e164Mask = `${chalk.cyan(e164Mask)}`
       }
+    } else {
+      // Set e164Mask
+      line.e164Mask = e164MaskStandard
+
+      count.fixedWrong++
+      fixedLineCounter++
+
+      e164Mask = `${chalk.yellow(e164Mask)} -> ${chalk.green(line.e164Mask)}`
     }
 
-    // Update devices with new e164Mask
-    if (fixedLineCounter > 0) {
-      await axl.updatePhone(phone.$.uuid.slice(1, -1), { lines: phone_details.lines })
+    // Print if we are changing e164Mask
+    if (e164Mask.includes('->')) {
+      // Remove progress bar from line before we print updated e164Mask
+      process.stdout.clearLine()
+      process.stdout.cursorTo(0)
+      
+      console.log(`${counter}/${phones.length} ${p.name} ${pattern} ${e164Mask}`)
     }
-  } else {
-    count.noLline++
-    console.log(`${counter}/${phones.length} ${chalk.yellow(phone.name)}`)
+  }
+
+  // Update devices with new e164Mask
+  if (fixedLineCounter > 0) {
+    await axl.updatePhone(p.$.uuid.slice(1, -1), { lines: phone.lines })
   }
 
   progressBar.increment()
 }
 
+// Redraw the counter in case it was overwritten
+progressBar.update(counter)
+// Stop the counter
 progressBar.stop()
 
-console.log(`\n\nFound ${phones.length} phones`)
+// Display statistics
+console.log(`\nFound ${phones.length} phones`)
 console.log(JSON.stringify(count))
