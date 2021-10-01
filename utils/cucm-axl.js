@@ -58,11 +58,16 @@ export default class AXL {
       }
     }
 
+    const xml2jsOptions = {
+      explicitArray: false,
+      emptyTags: null
+    }
+
     //console.log(`Executed: ${methodType}`)  
     //console.log(res.data)
 
     //const soapenvBody = xmljs.xml2js(res.data, xmljsOptions)['soapenv:Envelope']['soapenv:Body']
-    const soapenvBody = await xml2js.parseStringPromise(res.data, { explicitArray: false }).then(data => data['soapenv:Envelope']['soapenv:Body'])
+    const soapenvBody = await xml2js.parseStringPromise(res.data, { explicitArray: false, emptyTag: null }).then(data => data['soapenv:Envelope']['soapenv:Body'])
     const soapenvFault = soapenvBody['soapenv:Fault'] // Grab soap error if there is one
     const nsResponse = soapenvBody[`ns:${methodType}Response`]
 
@@ -70,7 +75,7 @@ export default class AXL {
       console.log('Error:', soapenvFault.faultstring)
       throw Object.assign(new Error(soapenvFault.faultstring), { status: res.status })
     } else {
-      const response = nsResponse.return[returnType] || []
+      const response = nsResponse.return ? nsResponse.return[returnType] : []
 
       // If method is list, always return an array
       return method === `list${type}` && response.constructor === Object ? [response] : response
