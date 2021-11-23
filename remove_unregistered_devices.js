@@ -5,6 +5,7 @@ import chalk from 'chalk'
 import yaml from 'js-yaml'
 import parseArgs from 'minimist'
 import Prompt from 'prompt-sync'
+import prompts from 'prompts'
 
 import AXL from './utils/cucm-axl.js'
 
@@ -34,7 +35,7 @@ let removeAllDevices = args['remove-all'] ? true : false
 const verbose = args.verbose ? true : false
 
 // Assign values from config
-const phonePrefixes = args['included-phone-prefixes'] ? args.includeddevices.split(',') : config.INCLUDED_DEVICES || []
+const phonePrefixes = args['included-phone-prefixes'] ? args['included-phone-prefixes'].split(',') : config.INCLUDED_DEVICES || []
 const allowedPhonePrefixes = Object.keys(phonePrefixes).map((key) => phonePrefixes[key]).flat()
 const excludedDescriptions = config.EXCLUDED.DESCRIPTIONS || []
 const excludedDevices = config.EXCLUDED.DEVICES || []
@@ -108,6 +109,16 @@ if (unregistered_devices.length === 0) {
   process.exit(0)
 }
 
+const { removeDevices } = await prompts({
+  type: 'confirm',
+  name: 'removeDevices',
+  message: 'Remove devices?',
+  initial: false
+})
+
+console.log(removeDevices)
+
+/*
 let removeDevices = ''
 
 while (!removeAllDevices && !removeDevices.match(/^[yn]$/)) {
@@ -117,9 +128,11 @@ while (!removeAllDevices && !removeDevices.match(/^[yn]$/)) {
     console.log(`Invalid input: ${removeDevices}`)
   }
 }
+*/
 
-if (removeAllDevices || removeDevices.match(/^[y]$/)) {
+if (removeAllDevices || removeDevices) {
   for (const device of unregistered_devices) {
+    /*
     let removeDevice = ''
 
     while (!removeAllDevices && !removeDevice.match(/^[yna]$/)) {
@@ -132,8 +145,24 @@ if (removeAllDevices || removeDevices.match(/^[y]$/)) {
 
     // Check if user wants to remove all
     if (removeDevice.match(/^[a]$/)) removeAllDevices = true
+    */
+    const { removeDevice } = await prompts({
+      type: 'select',
+      name: 'removeDevice',
+      message: `Remove device ${device.name}?`,
+      choices: [
+        {title: 'yes', value: 'yes'},
+        {title: 'no', value: 'no'},
+        {title: 'all', value: 'all'}
+      ],
+      initial: 1
+    })
+
+    removeAllDevices = removeDevice === 'all' ? true : false
+
+    console.log(removeAllDevices, removeDevice)
     
-    if (removeAllDevices || removeDevice.match(/^[y]$/)) {
+    if (removeAllDevices || removeDevice === 'yes') {
       await axl.removePhone(device.pkid)
 
       console.log(`Removed ${device.name}`)
