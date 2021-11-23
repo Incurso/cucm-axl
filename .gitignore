@@ -129,3 +129,6 @@ target/
 
 # config files
 config.yml
+
+# other files
+*.xlsx
