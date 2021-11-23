@@ -116,36 +116,8 @@ const { removeDevices } = await prompts({
   initial: false
 })
 
-console.log(removeDevices)
-
-/*
-let removeDevices = ''
-
-while (!removeAllDevices && !removeDevices.match(/^[yn]$/)) {
-  removeDevices = prompt('Remove devices [y/N]: ', { value: 'N' }).toLowerCase()
-
-  if (!removeDevices.match(/^[yn]$/)) {
-    console.log(`Invalid input: ${removeDevices}`)
-  }
-}
-*/
-
 if (removeAllDevices || removeDevices) {
   for (const device of unregistered_devices) {
-    /*
-    let removeDevice = ''
-
-    while (!removeAllDevices && !removeDevice.match(/^[yna]$/)) {
-      removeDevice = await prompt(`Remove ${device.name} [y/N/a]: `, { value: 'N' }).toLowerCase()
-
-      if (!removeDevice.match(/^[yna]$/)) {
-        console.log(`Invalid input: ${removeDevice}`)
-      }
-    }
-
-    // Check if user wants to remove all
-    if (removeDevice.match(/^[a]$/)) removeAllDevices = true
-    */
     const { removeDevice } = await prompts({
       type: 'select',
       name: 'removeDevice',
@@ -160,8 +132,6 @@ if (removeAllDevices || removeDevices) {
 
     removeAllDevices = removeDevice === 'all' ? true : false
 
-    console.log(removeAllDevices, removeDevice)
-    
     if (removeAllDevices || removeDevice === 'yes') {
       await axl.removePhone(device.pkid)
 
