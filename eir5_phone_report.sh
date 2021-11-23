@@ -1,0 +1,1 @@
+(cd ../../Python/cucm-axl && py check_phones_by_ip.py) | grep Eir5 | grep -Po "'[0-9]{4}'" | grep -Po "[0-9]{4}" | sort --unique | awk '{system("node report --start-date=2021-08-01 --end-date=2021-11-01 --dn=" $1)}'
