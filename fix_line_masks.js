@@ -16,18 +16,18 @@ const e164MaskHidden = `+${config.COUNTRY_CODE}${config.PREFIX}${config.DN_MAIN}
 const e164MaskStandard = `+${config.COUNTRY_CODE}${config.PREFIX}${'X'.repeat(config.DN_LENGTH)}`
 
 const axl = new AXL()
-const progressBar = new cliProgress.SingleBar({format: '{percentage}% [{bar}] {value}/{total} | Duration: {duration_formatted} | ETA: {eta_formatted}'}, cliProgress.Presets.rect)
+const progressBar = new cliProgress.SingleBar({ format: '{percentage}% [{bar}] {value}/{total} | Duration: {duration_formatted} | ETA: {eta_formatted}' }, cliProgress.Presets.rect)
 
 // Define counters
 const count = {
-    correct: 0,
-    correctHidden: 0,
-    fixedPrefix: 0,
-    fixedPrefixHidden: 0,
-    fixedWrong: 0,
-    fixedNoMask: 0,
-    noLine: 0
-  }
+  correct: 0,
+  correctHidden: 0,
+  fixedPrefix: 0,
+  fixedPrefixHidden: 0,
+  fixedWrong: 0,
+  fixedNoMask: 0,
+  noLine: 0
+}
 let counter = 0
 
 const phoneTypes = config.INCLUDED_DEVICES
@@ -35,6 +35,10 @@ const allowedPhoneTypes = Object.keys(phoneTypes).map((key) => phoneTypes[key]).
 
 // Get a list of all devices in Call Manager
 const phones = await axl.list('Phone', { name: '%' }, ['name'])
+  .catch((err) => {
+    console.error('Connection Error:', err.message)
+    process.exit(1)
+  })
 
 // Sort phones by name alphabeticaly
 phones.sort((a, b) => a.name > b.name ? 1 : -1)
@@ -52,10 +56,9 @@ for (const p of phones) {
     continue
   }
 
-  //console.log(p)
   const phone = await axl.get('Phone', { uuid: p.$.uuid })
-  
-  // skip if phone has no lines
+
+  // Skip if phone has no lines
   if (!phone.lines) {
     count.noLine++
 
@@ -70,7 +73,6 @@ for (const p of phones) {
   }
 
   const lines = Array.isArray(phone.lines.line) ? phone.lines.line : [phone.lines.line]
-  //console.log(lines)
 
   for (const line of lines) {
     let e164Mask = typeof line.e164Mask === 'string' ? line.e164Mask : null
@@ -97,7 +99,7 @@ for (const p of phones) {
       // Set e164Mask
       line.e164Mask = `+${config.COUNTRY_CODE}${config.PREFIX}${line.e164Mask.slice(-config.DN_LENGTH)}`
 
-      if (e164Mask.slice(-config.DN_LENGTH) === 'X'.repeat(config.DN_LENGTH)){
+      if (e164Mask.slice(-config.DN_LENGTH) === 'X'.repeat(config.DN_LENGTH)) {
         count.fixedPrefix++
 
         e164Mask = `${e164Mask} -> ${chalk.green(line.e164Mask)}`
@@ -110,8 +112,8 @@ for (const p of phones) {
       fixedLineCounter++
     } else if (e164Mask.slice(0, -config.DN_LENGTH) === `+${config.COUNTRY_CODE}${config.PREFIX}`) {
       // Line on phone contains e164Mask that begins with + COUNTRY_CODE AND PREFIX
-      
-      if (e164Mask.slice(-config.DN_LENGTH) === 'X'.repeat(config.DN_LENGTH)){
+
+      if (e164Mask.slice(-config.DN_LENGTH) === 'X'.repeat(config.DN_LENGTH)) {
         count.correct++
       } else {
         count.correctHidden++
@@ -133,7 +135,7 @@ for (const p of phones) {
       // Remove progress bar from line before we print updated e164Mask
       process.stdout.clearLine()
       process.stdout.cursorTo(0)
-      
+
       console.log(`${counter}/${phones.length} ${p.name} ${pattern} ${e164Mask}`)
     }
   }
