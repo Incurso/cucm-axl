@@ -1,19 +1,18 @@
 import fs from 'fs'
 import path from 'path'
-import cliProgress from 'cli-progress'
-import chalk from 'chalk'
+// import cliProgress from 'cli-progress'
+// import chalk from 'chalk'
 import yaml from 'js-yaml'
 import parseArgs from 'minimist'
-import Prompt from 'prompt-sync'
 import prompts from 'prompts'
 
 import AXL from './utils/cucm-axl.js'
 
 const args = parseArgs(process.argv.slice(2))
 
-// Display help and exit if 
+// Display help and exit if
 if (args.help) {
-  console.log(`Usage: node ${path.basename(process.argv.slice(1,2).toString())} [OPTION]\n`)
+  console.log(`Usage: node ${path.basename(process.argv.slice(1, 2).toString())} [OPTION]\n`)
   console.log(`${'--config <inputfilename>'.padEnd(35)} Load YAML config file.`)
   console.log(`${'--cutoff-mark'.padEnd(35)} Cut-off mark in days.`)
   console.log(`${'--help'.padEnd(35)} Displays this help and exit.`)
@@ -28,11 +27,10 @@ if (args.help) {
 const config = yaml.load(fs.readFileSync(path.resolve(args.config || './config/config.yml'), 'utf8')).CLEANUP_UNREGISTERED_DEVICES
 
 const axl = new AXL()
-const prompt = new Prompt({ sigint: true })
 
 // Check if we want to delete all devices from args
-let removeAllDevices = args['remove-all'] ? true : false
-const verbose = args.verbose ? true : false
+let removeAllDevices = args['remove-all'] // ? true : false
+const verbose = args.verbose // ? true : false
 
 // Assign values from config
 const phonePrefixes = args['included-phone-prefixes'] ? args['included-phone-prefixes'].split(',') : config.INCLUDED_DEVICES || []
@@ -70,17 +68,20 @@ if (verbose) console.log(query)
 
 // Execute Query
 const devices = await axl.executeSQLQuery(query)
-  .catch(err => { throw err })
+  .catch(err => {
+    console.error('Connection Error:', err.message)
+    process.exit(1)
+  })
 
 console.log(`Gotten ${devices.length} devices.`)
 if (verbose) console.log(Object.keys(devices[0]), devices[0].lastseen)
 
 // Remove everything except what we want
-const unregistered_devices = devices
+const unregisteredDevices = devices
   // Exclude devices that have never registered
   .filter((device) => device.lastseen !== '0')
   // Only include devices with allowed PREFIX
-  .filter((device) => allowedPhonePrefixes.includes(device.name.slice(0,3)))
+  .filter((device) => allowedPhonePrefixes.includes(device.name.slice(0, 3)))
   // Exclude devices by DESCRIPTION
   .filter((device) => !excludedDescriptions.includes(device.description))
   // Exclude devices by MODEL
@@ -90,21 +91,21 @@ const unregistered_devices = devices
   // Exclude devices by NAME
   .filter((device) => !excludedDevices.includes(device.name))
   // Exclude devices by LAST_SEEN_LIMIT
-  .filter((device) => ((Date.now()/1000) - device.lastseen) > cutoffMark * 24 * 60 * 60)
+  .filter((device) => ((Date.now() / 1000) - device.lastseen) > cutoffMark * 24 * 60 * 60)
 
 // Print out a list of devices that were found
 console.log(`Devices unregistered for more than ${cutoffMark} days`)
 console.log('-'.repeat(110))
 console.log(`${'name'.padEnd(15)} | ${'model'.padEnd(25)} | ${'pattern'.padEnd(8)} | ${'description'.padEnd(40)} | ${'last'.padEnd(10)}`)
 console.log('-'.repeat(110))
-for (const device of unregistered_devices) {
-  console.log(`${device.name.padEnd(15)} | ${device.model.slice(0,25).padEnd(25)} | ${device.dnorpattern.padEnd(8)} | ${typeof device.description === 'string' ? device.description.slice(0,40).padEnd(40) : ''.padEnd(40)} | ${(new Date(device.lastseen * 1000)).toISOString([], {}).slice(0,10).replace(/-/g, '.').padEnd(10)}`)
+for (const device of unregisteredDevices) {
+  console.log(`${device.name.padEnd(15)} | ${device.model.slice(0, 25).padEnd(25)} | ${device.dnorpattern.padEnd(8)} | ${typeof device.description === 'string' ? device.description.slice(0, 40).padEnd(40) : ''.padEnd(40)} | ${(new Date(device.lastseen * 1000)).toISOString([], {}).slice(0, 10).replace(/-/g, '.').padEnd(10)}`)
 }
 console.log('-'.repeat(110))
-console.log(`Total: ${unregistered_devices.length}`)
+console.log(`Total: ${unregisteredDevices.length}`)
 
 // Check if we found devices prompt for deletion of we found any
-if (unregistered_devices.length === 0) {
+if (unregisteredDevices.length === 0) {
   console.log(`Found no device that has been unregistered for more than ${cutoffMark} days.`)
   process.exit(0)
 }
@@ -117,22 +118,27 @@ const { removeDevices } = await prompts({
 })
 
 if (removeAllDevices || removeDevices) {
-  for (const device of unregistered_devices) {
-    const { removeDevice } = await prompts({
-      type: 'select',
-      name: 'removeDevice',
-      message: `Remove device ${device.name}?`,
-      choices: [
-        {title: 'yes', value: 'yes'},
-        {title: 'no', value: 'no'},
-        {title: 'all', value: 'all'}
-      ],
-      initial: 1
-    })
+  for (const device of unregisteredDevices) {
+    let removeDevice = false
 
-    removeAllDevices = removeDevice === 'all' ? true : false
+    if (!removeAllDevices) {
+      const { answer } = await prompts({
+        type: 'select',
+        name: 'answer',
+        message: `Remove device ${device.name}?`,
+        choices: [
+          { title: 'yes', value: 'yes' },
+          { title: 'no', value: 'no' },
+          { title: 'all', value: 'all' }
+        ],
+        initial: 1
+      })
 
-    if (removeAllDevices || removeDevice === 'yes') {
+      removeAllDevices = answer === 'all' // ? true : false
+      removeDevice = answer === 'yes'
+    }
+
+    if (removeAllDevices || removeDevice) {
       await axl.removePhone(device.pkid)
 
       console.log(`Removed ${device.name}`)
