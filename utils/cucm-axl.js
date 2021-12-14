@@ -5,7 +5,6 @@ import path from 'path'
 import yaml from 'js-yaml'
 import axios from 'axios'
 import https from 'https'
-import xmljs from 'xml-js'
 import xml2js from 'xml2js'
 import parseArgs from 'minimist'
 
@@ -21,7 +20,9 @@ axios.defaults.headers = {
   Authorization: `Basic ${Buffer.from(`${config.CUCM.USER}:${config.CUCM.PASS}`).toString('base64')}`,
   'Content-Type': 'text/xml; charset=utf-8'
 }
-axios.defaults.httpsAgent = new https.Agent({ rejectUnauthorized: false }) // required to accept self-signed certificate
+axios.defaults.httpsAgent = new https.Agent({ keepAlive: true })
+
+// axios.defaults.httpsAgent = new https.Agent({ rejectUnauthorized: false }) // required to accept self-signed certificate
 
 export default class AXL {
   async execute (method, type, content) {
@@ -41,39 +42,21 @@ export default class AXL {
       </soapenv:Envelope>
     `
 
-    //console.log(`Executing: ${methodType}`)
     const res = await axios.post('/axl/', soapBody)
-      .catch((err) => { return err.response })
+      .catch((err) => { throw new Error(err.message) })
 
-    const xmljsOptions = {
-      compact: true,
-      trim: true,
-      // Remove _text from each Object and place it's value in it's parent
-      textFn: (value, parentElement) => {
-        try {
-          const keyNo = Object.keys(parentElement._parent).length
-          const keyName = Object.keys(parentElement._parent)[keyNo - 1]
-          parentElement._parent[keyName] = value
-        } catch (e) {}
-      }
-    }
+    const soapenvBody = await xml2js.parseStringPromise(res.data, { explicitArray: false, emptyTag: null })
+      .then(data => data['soapenv:Envelope']['soapenv:Body'])
 
-    const xml2jsOptions = {
-      explicitArray: false,
-      emptyTags: null
-    }
-
-    //console.log(`Executed: ${methodType}`)  
-    //console.log(res.data)
-
-    //const soapenvBody = xmljs.xml2js(res.data, xmljsOptions)['soapenv:Envelope']['soapenv:Body']
-    const soapenvBody = await xml2js.parseStringPromise(res.data, { explicitArray: false, emptyTag: null }).then(data => data['soapenv:Envelope']['soapenv:Body'])
     const soapenvFault = soapenvBody['soapenv:Fault'] // Grab soap error if there is one
     const nsResponse = soapenvBody[`ns:${methodType}Response`]
 
     if (soapenvFault) {
-      console.log('Error:', soapenvFault.faultstring)
-      throw Object.assign(new Error(soapenvFault.faultstring), { status: res.status })
+      if (soapenvFault.faultstring !== 'No more than 5 EndUsers can be subscribed to receive status for a line appearance.') {
+        console.log('Error:', soapenvFault.faultstring)
+        console.log('Content:', content)
+        throw Object.assign(new Error(soapenvFault.faultstring), { status: res.status })
+      }
     } else {
       const response = nsResponse.return ? nsResponse.return[returnType] : []
 
@@ -92,6 +75,12 @@ export default class AXL {
     `
 
     return this.execute(`get${type}`, type, content)
+      .catch((err) => {
+        throw new Error(
+          `\nget${type} Error: ${err.message}` +
+          `\nPayload:${JSON.stringify(searchCriteria, null, 2)}`
+        )
+      })
   }
 
   list (type, searchCriteria, returnedTags) {
@@ -105,6 +94,9 @@ export default class AXL {
     `
 
     return this.execute(`list${type}`, type, content)
+      .catch((err) => {
+        throw new Error(`\nlist${type} Error: ${err.message}`)
+      })
   }
 
   updateUserDeviceAssociation (userid, devices) {
@@ -136,6 +128,24 @@ export default class AXL {
     `
 
     return this.execute('updateUser', 'User', content)
+  }
+
+  async updateUser (userid, payload) {
+    const builder = new xml2js.Builder({ headless: true })
+
+    const content = `
+      <userid>${userid}</userid>
+      ${builder.buildObject(payload)}
+    `.replace(/<root>|<root uuid="{.{36}}">|<\/root>/g, '')
+
+    return await this.execute('updateUser', 'User', content)
+      .catch((err) => {
+        throw new Error(
+          `\nupdateUser Error: ${err.message}` +
+          `\nWhile trying to update User: ${userid}` +
+          `\nPayload:${JSON.stringify(payload, null, 2)}`
+        )
+      })
   }
 
   updateLine ({ pattern, callForwardAll }) {
