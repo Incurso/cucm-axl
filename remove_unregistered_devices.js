@@ -110,12 +110,12 @@ if (unregisteredDevices.length === 0) {
   process.exit(0)
 }
 
-const { removeDevices } = await prompts({
+const removeDevices = removeAllDevices || (await prompts({
   type: 'confirm',
   name: 'removeDevices',
   message: 'Remove devices?',
   initial: false
-})
+})).removeDevices
 
 if (removeAllDevices || removeDevices) {
   for (const device of unregisteredDevices) {
