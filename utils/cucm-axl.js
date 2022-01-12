@@ -43,7 +43,8 @@ export default class AXL {
     `
 
     const res = await axios.post('/axl/', soapBody)
-      .catch((err) => { throw new Error(err.message) })
+      .catch((err) => err.response) // Return response error and work with it later
+    // .catch((err) => { console.log(Object.keys(err)); throw new Error(err.message) })
 
     const soapenvBody = await xml2js.parseStringPromise(res.data, { explicitArray: false, emptyTag: null })
       .then(data => data['soapenv:Envelope']['soapenv:Body'])
@@ -206,5 +207,35 @@ export default class AXL {
     `
 
     return await this.execute('executeSQLQuery', 'row', content)
+  }
+
+  async getHuntLists () {
+    const query = `
+      SELECT n.dNOrPattern AS HuntPilot, d.name AS HuntList, d.description, rl.selectionorder, lg.name AS LineGroup 
+      FROM device AS d 
+        INNER JOIN routelist AS rl ON rl.fkDevice=d.pkid 
+        INNER JOIN DeviceNumPlanMap AS dmap ON dmap.fkDevice=d.pkid 
+        INNER JOIN NumPlan AS n ON n.pkid=dmap.fkNumPlan 
+        INNER JOIN linegroup lg ON rl.fklinegroup = lg.pkid  
+      ORDER BY n.dnorpattern
+    `
+
+    return await this.executeSQLQuery(query)
+  }
+
+  async getLineGroup (name) {
+    const query = `
+      SELECT lg.name AS LineGroup, n.dnorpattern, d.name AS DeviceName, d.description, dhd.hlog
+      FROM linegroup AS lg
+        INNER JOIN linegroupnumplanmap AS lgmap ON lgmap.fklinegroup=lg.pkid
+        INNER JOIN numplan AS n ON lgmap.fknumplan = n.pkid
+        INNER JOIN devicenumplanmap AS dmap ON dmap.fknumplan = n.pkid
+        INNER JOIN device AS d ON dmap.fkdevice=d.pkid
+        INNER JOIN devicehlogdynamic AS dhd ON dhd.fkdevice=d.pkid
+      WHERE lg.name = '${name}'
+      ORDER BY lg.name
+    `
+
+    return await this.executeSQLQuery(query)
   }
 }
