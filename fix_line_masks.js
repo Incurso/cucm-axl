@@ -26,6 +26,7 @@ const count = {
   fixedPrefixHidden: 0,
   fixedWrong: 0,
   fixedNoMask: 0,
+  fixedCallInfoDisplay: 0,
   noLine: 0
 }
 let counter = 0
@@ -76,6 +77,7 @@ for (const p of phones) {
 
   for (const line of lines) {
     let e164Mask = typeof line.e164Mask === 'string' ? line.e164Mask : null
+    const callInfoDisplay = line.callInfoDisplay
     const pattern = line.dirn.pattern
 
     if (!e164Mask) {
@@ -128,6 +130,14 @@ for (const p of phones) {
       fixedLineCounter++
 
       e164Mask = `${chalk.yellow(e164Mask)} -> ${chalk.green(line.e164Mask)}`
+    }
+
+    if (callInfoDisplay.callerName === 'false' || callInfoDisplay.dialedNumber === 'false') {
+      callInfoDisplay.callerName = 'true'
+      callInfoDisplay.dialedNumber = 'true'
+
+      count.fixedCallInfoDisplay++
+      fixedLineCounter++
     }
 
     // Print if we are changing e164Mask
