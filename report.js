@@ -5,6 +5,8 @@ import parseArgs from 'minimist'
 import pg from 'pg'
 import Excel from 'exceljs'
 
+import { decrypt } from './utils/crypto.js'
+
 const args = parseArgs(process.argv.slice(2))
 
 // Display help and exit if
@@ -46,7 +48,7 @@ const config = yaml.load(fs.readFileSync(path.resolve(args.config || './config/c
 const client = new pg.Client({
   host: config.HOST,
   user: config.USER,
-  password: config.PASS,
+  password: decrypt(config.PASS),
   database: config.DB
 })
 
