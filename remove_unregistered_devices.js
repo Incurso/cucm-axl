@@ -5,8 +5,10 @@ import path from 'path'
 import yaml from 'js-yaml'
 import parseArgs from 'minimist'
 import prompts from 'prompts'
+import { fileURLToPath } from 'url'
 
 import AXL from './utils/cucm-axl.js'
+import Logger from './utils/logger.js'
 
 const args = parseArgs(process.argv.slice(2))
 
@@ -18,7 +20,7 @@ if (args.help) {
   console.log(`${'--help'.padEnd(35)} Displays this help and exit.`)
   console.log(`${'--included-phone-prefixes <ATA,SEP>'.padEnd(35)} Include devices with name prefix.`)
   console.log(`${'--remove-all'.padEnd(35)} Removes all devices found to be expired.`)
-  console.log(`${'--verbose'.padEnd(35)} Enables verbose output`)
+  // console.log(`${'--verbose'.padEnd(35)} Enables verbose output`)
   console.log('')
   process.exit(0)
 }
@@ -26,11 +28,14 @@ if (args.help) {
 // Load config file
 const config = yaml.load(fs.readFileSync(path.resolve(args.config || './config/config.yml'), 'utf8')).CLEANUP_UNREGISTERED_DEVICES
 
+const logger = new Logger(path.basename(fileURLToPath(import.meta.url)).replace(/\.js$/, ''))
+logger.info('Starting...')
+
 const axl = new AXL()
 
 // Check if we want to delete all devices from args
 let removeAllDevices = args['remove-all'] // ? true : false
-const verbose = args.verbose // ? true : false
+// const verbose = args.verbose // ? true : false
 
 // Assign values from config
 const phonePrefixes = args['included-phone-prefixes'] ? args['included-phone-prefixes'].split(',') : config.INCLUDED_DEVICES || []
@@ -64,17 +69,17 @@ const query = `
   ORDER BY rd.lastseen
 `
 
-if (verbose) console.log(query)
+logger.debug(query)
 
 // Execute Query
 const devices = await axl.executeSQLQuery(query)
   .catch(err => {
-    console.error('Connection Error:', err.message)
+    logger.error('Connection Error:', err.message)
     process.exit(1)
   })
 
-console.log(`Gotten ${devices.length} devices.`)
-if (verbose) console.log(Object.keys(devices[0]), devices[0].lastseen)
+logger.debug(`Found ${devices.length} devices that need to be filtered.`)
+logger.debug(Object.keys(devices[0]), devices[0].lastseen)
 
 // Remove everything except what we want
 const unregisteredDevices = devices
@@ -94,19 +99,19 @@ const unregisteredDevices = devices
   .filter((device) => ((Date.now() / 1000) - device.lastseen) > cutoffMark * 24 * 60 * 60)
 
 // Print out a list of devices that were found
-console.log(`Devices unregistered for more than ${cutoffMark} days`)
-console.log('-'.repeat(110))
-console.log(`${'name'.padEnd(15)} | ${'model'.padEnd(25)} | ${'pattern'.padEnd(8)} | ${'description'.padEnd(40)} | ${'last'.padEnd(10)}`)
-console.log('-'.repeat(110))
+logger.info(`Devices unregistered for more than ${cutoffMark} days`)
+logger.info('-'.repeat(110))
+logger.info(`${'name'.padEnd(15)} | ${'model'.padEnd(25)} | ${'pattern'.padEnd(8)} | ${'description'.padEnd(40)} | ${'last'.padEnd(10)}`)
+logger.info('-'.repeat(110))
 for (const device of unregisteredDevices) {
-  console.log(`${device.name.padEnd(15)} | ${device.model.slice(0, 25).padEnd(25)} | ${device.dnorpattern.padEnd(8)} | ${typeof device.description === 'string' ? device.description.slice(0, 40).padEnd(40) : ''.padEnd(40)} | ${(new Date(device.lastseen * 1000)).toISOString([], {}).slice(0, 10).replace(/-/g, '.').padEnd(10)}`)
+  logger.info(`${device.name.padEnd(15)} | ${device.model.slice(0, 25).padEnd(25)} | ${device.dnorpattern.padEnd(8)} | ${typeof device.description === 'string' ? device.description.slice(0, 40).padEnd(40) : ''.padEnd(40)} | ${(new Date(device.lastseen * 1000)).toISOString([], {}).slice(0, 10).replace(/-/g, '.').padEnd(10)}`)
 }
-console.log('-'.repeat(110))
-console.log(`Total: ${unregisteredDevices.length}`)
+logger.info('-'.repeat(110))
+logger.info(`Total: ${unregisteredDevices.length}`)
 
 // Check if we found devices prompt for deletion of we found any
 if (unregisteredDevices.length === 0) {
-  console.log(`Found no device that has been unregistered for more than ${cutoffMark} days.`)
+  logger.info(`Found no device that has been unregistered for more than ${cutoffMark} days.`)
   process.exit(0)
 }
 
@@ -139,9 +144,11 @@ if (removeAllDevices || removeDevices) {
     }
 
     if (removeAllDevices || removeDevice) {
+      logger.backup(await axl.get('Phone', { name: device.name }))
+
       await axl.removePhone(device.pkid)
 
-      console.log(`Removed ${device.name}`)
+      logger.info(`Removed ${device.name}`)
     }
   }
 }
