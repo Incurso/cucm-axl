@@ -1,23 +1,27 @@
-import fs from 'fs'
+import fs from 'fs/promises'
 import path from 'path'
 import cliProgress from 'cli-progress'
 import chalk from 'chalk'
 import yaml from 'js-yaml'
 import parseArgs from 'minimist'
 import stripAnsi from 'strip-ansi'
+import { fileURLToPath } from 'url'
 
 import AXL from './utils/cucm-axl.js'
-import { print } from './utils/print.js'
+import Logger from './utils/logger.js'
+
+const args = parseArgs(process.argv.slice(2))
+
+// Load config file
+const config = yaml.load(await fs.readFile(path.resolve(args.config || './config/config.yml'), 'utf8')).FIX_USER_LINE_ASSOCIATION
+
+const logger = new Logger(path.basename(fileURLToPath(import.meta.url)).replace(/\.js$/, ''))
+logger.info('Starting...')
 
 console.time('Execution time')
 
 const axl = new AXL()
 const progressBar = new cliProgress.SingleBar({ format: '{percentage}% [{bar}] {value}/{total} | Duration: {duration_formatted} | ETA: {eta_formatted}' }, cliProgress.Presets.rect)
-
-const args = parseArgs(process.argv.slice(2))
-
-// Load config file
-const config = yaml.load(fs.readFileSync(path.resolve(args.config || './config/config.yml'), 'utf8')).FIX_USER_LINE_ASSOCIATION
 
 // Assign values from config
 const phonePrefixes = args['included-phone-prefixes'] ? args.includeddevices.split(',') : config.INCLUDED_DEVICES || []
@@ -46,7 +50,7 @@ const users = await axl.list(
   ['userid', 'department', 'status', 'telephoneNumber']
 )
   .catch((err) => {
-    console.error(err.message)
+    logger.error(err.message)
   })
 
 // Get route plans for directory number
@@ -56,7 +60,7 @@ const routePlans = await axl.list(
   ['dnOrPattern', 'partition', 'type', 'routeDetail']
 )
   .catch((err) => {
-    console.error(err.message)
+    logger.error(err.message)
   })
 
 // Sort usersalphabeticaly by userid
@@ -73,7 +77,7 @@ for (const u of users) {
 
   let user = await axl.get('User', { userid: u.userid })
     .catch((err) => {
-      console.error(err.message)
+      logger.error(err.message)
     })
 
   const userDevices = user.associatedDevices
@@ -151,12 +155,12 @@ for (const u of users) {
         associatedDevices: user.associatedDevices
       })
         .catch((err) => {
-          console.error(err.message)
+          logger.error(err.message)
         })
 
       user = await axl.get('User', { userid: u.userid })
         .catch((err) => {
-          console.error(err.message)
+          logger.error(err.message)
         })
     }
 
@@ -197,7 +201,7 @@ for (const u of users) {
 
       if (reasonCode) {
         if (config.LOGLEVEL === 'debug') {
-          print(`${user.userid} Updating LAAP: ${reasonCode}`)
+          logger.info(`${user.userid} Updating LAAP: ${reasonCode}`)
         }
 
         const newUserLAAP = [
@@ -221,7 +225,7 @@ for (const u of users) {
           lineAppearanceAssociationForPresences: user.lineAppearanceAssociationForPresences
         })
           .catch((err) => {
-            console.error(err.message)
+            logger.error(err.message)
           })
       }
     }
@@ -235,7 +239,7 @@ for (const u of users) {
       note
     })
 
-    print(`${counter}/${users.length} User: ${u.userid}, Tel: ${u.telephoneNumber}, Reason: ${reasonCode}, Note: ${note}`)
+    logger.info(`${counter}/${users.length} User: ${u.userid}, Tel: ${u.telephoneNumber}, Reason: ${reasonCode}, Note: ${note}`)
   }
 
   count[counterKey]++
@@ -280,9 +284,9 @@ for (const item of Object.values(report)) {
   }
 }
 
-console.log(`\n${body.join('\n')}`)
+logger.info(`\n${body.join('\n')}`)
 
-console.log(`\n    Found ${users.length} users
+logger.info(`\n    Found ${users.length} users
 
 ${String('type').padStart(22, ' ')} | count
     ${'-'.repeat(30)}
