@@ -1,16 +1,21 @@
-import fs from 'fs'
+import fs from 'fs/promises'
 import path from 'path'
 import cliProgress from 'cli-progress'
 import chalk from 'chalk'
 import yaml from 'js-yaml'
 import parseArgs from 'minimist'
+import { fileURLToPath } from 'url'
 
 import AXL from './utils/cucm-axl.js'
+import Logger from './utils/logger.js'
 
 const args = parseArgs(process.argv.slice(2))
 
 // Load config file
-const config = yaml.load(fs.readFileSync(path.resolve(args.config || './config/config.yml'), 'utf8')).CHECK_LINE_MASK
+const config = yaml.load(await fs.readFile(path.resolve(args.config || './config/config.yml'), 'utf8')).CHECK_LINE_MASK
+
+const logger = new Logger(path.basename(fileURLToPath(import.meta.url)).replace(/\.js$/, ''))
+logger.info('Starting...')
 
 const e164MaskHidden = `+${config.COUNTRY_CODE}${config.PREFIX}${config.DN_MAIN}`
 const e164MaskStandard = `+${config.COUNTRY_CODE}${config.PREFIX}${'X'.repeat(config.DN_LENGTH)}`
@@ -37,7 +42,7 @@ const allowedPhoneTypes = Object.keys(phoneTypes).map((key) => phoneTypes[key]).
 // Get a list of all devices in Call Manager
 const phones = await axl.list('Phone', { name: '%' }, ['name'])
   .catch((err) => {
-    console.error('Connection Error:', err.message)
+    logger.error('Connection Error:', err.message)
     process.exit(1)
   })
 
@@ -63,11 +68,7 @@ for (const p of phones) {
   if (!phone.lines) {
     count.noLine++
 
-    // Remove progress bar from line before we print updated e164Mask
-    process.stdout.clearLine()
-    process.stdout.cursorTo(0)
-
-    console.log(`\n${counter}/${phones.length} ${chalk.yellow(p.name)} has no lines`)
+    logger.info(`\n${counter}/${phones.length} ${chalk.yellow(p.name)} has no lines`)
 
     progressBar.increment()
     continue
@@ -146,7 +147,7 @@ for (const p of phones) {
       process.stdout.clearLine()
       process.stdout.cursorTo(0)
 
-      console.log(`${counter}/${phones.length} ${p.name} ${pattern} ${e164Mask}`)
+      logger.info(`${counter}/${phones.length} ${p.name} ${pattern} ${e164Mask}`)
     }
   }
 
@@ -164,5 +165,5 @@ progressBar.update(counter)
 progressBar.stop()
 
 // Display statistics
-console.log(`\nFound ${phones.length} phones`)
-console.log(JSON.stringify(count))
+logger.info(`\nFound ${phones.length} phones`)
+logger.info(JSON.stringify(count))
