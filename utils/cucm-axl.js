@@ -7,17 +7,23 @@ import axios from 'axios'
 import https from 'https'
 import xml2js from 'xml2js'
 import parseArgs from 'minimist'
+import { fileURLToPath } from 'url'
+
+import { decrypt } from './crypto.js'
+import Logger from './logger.js'
+
+const logger = new Logger(path.basename(fileURLToPath(import.meta.url)).replace(/\.js$/, ''))
 
 const args = parseArgs(process.argv.slice(2))
 
 // Load config file
-const config = yaml.load(fs.readFileSync(path.resolve(args.config || './config/config.yml'), 'utf8'))
+const config = yaml.load(fs.readFileSync(path.resolve(args.config || './config/config.yml'), 'utf8')).CUCM
 
 // Set connection defaults for axios
-axios.defaults.baseURL = `${config.CUCM.PROTOCOL}://${config.CUCM.HOST}`
+axios.defaults.baseURL = `${config.PROTOCOL}://${config.HOST}`
 axios.defaults.headers = {
-  SoapAction: `CUCM:DB ver=${config.CUCM.VERSION}`,
-  Authorization: `Basic ${Buffer.from(`${config.CUCM.USER}:${config.CUCM.PASS}`).toString('base64')}`,
+  SoapAction: `CUCM:DB ver=${config.VERSION}`,
+  Authorization: `Basic ${Buffer.from(`${config.USER}:${decrypt(config.PASS)}`).toString('base64')}`,
   'Content-Type': 'text/xml; charset=utf-8'
 }
 axios.defaults.httpsAgent = new https.Agent({ keepAlive: true })
@@ -35,7 +41,7 @@ export default class AXL {
       xmlns:xsd="http://www.w3.org/2001/XMLSchema"
       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
         <soapenv:Body>
-          <axl:${methodType} xmlns:axl="http://www.cisco.com/AXL/API/${config.CUCM.VERSION}">
+          <axl:${methodType} xmlns:axl="http://www.cisco.com/AXL/API/${config.VERSION}">
             ${content}
           </axl:${methodType}>
         </soapenv:Body>
@@ -44,7 +50,9 @@ export default class AXL {
 
     const res = await axios.post('/axl/', soapBody)
       .catch((err) => err.response) // Return response error and work with it later
-    // .catch((err) => { console.log(Object.keys(err)); throw new Error(err.message) })
+
+    logger.debug(`Method: ${res.request.method}, URL: ${res.request.protocol}//${res.request.host}${res.request.path}, Payload: ${res.data}`)
+    logger.debug(`Response: ${res.status}, ${res.data}`)
 
     const soapenvBody = await xml2js.parseStringPromise(res.data, { explicitArray: false, emptyTag: null })
       .then(data => data['soapenv:Envelope']['soapenv:Body'])
@@ -54,9 +62,10 @@ export default class AXL {
 
     if (soapenvFault) {
       if (soapenvFault.faultstring !== 'No more than 5 EndUsers can be subscribed to receive status for a line appearance.') {
-        console.log('Error:', soapenvFault.faultstring)
-        console.log('Content:', content)
-        throw Object.assign(new Error(soapenvFault.faultstring), { status: res.status })
+        logger.error(soapenvFault)
+        logger.error('Content:', content)
+
+        throw new Error(soapenvFault.faultstring)
       }
     } else {
       const response = nsResponse.return ? nsResponse.return[returnType] : []
@@ -149,6 +158,27 @@ export default class AXL {
       })
   }
 
+  async updateLineByUUID (uuid, payload) {
+    const builder = new xml2js.Builder({ headless: true })
+
+    if (payload.useEnterpriseAltNum === 'false') delete payload.enterpriseAltNum
+    if (payload.useE164AltNum === 'false') delete payload.e164AltNum
+
+    const content = `
+      <uuid>${uuid}</uuid>
+      ${builder.buildObject(payload)}
+    `.replace(/<root>|<root uuid="{.{36}}">|<\/root>/g, '')
+
+    return await this.execute('updateLine', 'Line', content)
+      .catch((err) => {
+        throw new Error(
+          `\nupdateUser Error: ${err.message}` +
+          `\nWhile trying to update Line: ${payload.pattern}` +
+          `\nPayload:${JSON.stringify(payload, null, 2)}`
+        )
+      })
+  }
+
   updateLine ({ pattern, callForwardAll }) {
     const content = `
       <pattern>${pattern}</pattern>
@@ -157,8 +187,6 @@ export default class AXL {
         <destination>${callForwardAll.destination}</destination>
       </callForwardAll>
     `
-
-    console.log(content)
 
     return this.execute('updateLine', 'Line', content)
   }
@@ -171,18 +199,10 @@ export default class AXL {
       </callForwardAll>
     `
 
-    console.log(content)
-
     return this.execute('updateLine', 'Line', content)
   }
 
   updatePhone (uuid, payload) {
-    /*
-    const content = `
-      <uuid>${uuid}</uuid>
-      ${xmljs.json2xml(payload, { compact: true, ignoreComment: true, spaces: 4 })}
-    `
-    */
     const builder = new xml2js.Builder({ headless: true })
 
     const content = `
@@ -237,5 +257,24 @@ export default class AXL {
     `
 
     return await this.executeSQLQuery(query)
+  }
+
+  async add (type, payload) {
+    const builder = new xml2js.Builder({ headless: true, rootName: type.toLowerCase() })
+
+    const content = builder.buildObject(payload)
+
+    return await this.execute(`add${type}`, type, content)
+      .then(() => {
+        logger.info(`Added ${type}: ${JSON.stringify(payload, null, 2)}`)
+
+        return true
+      })
+      .catch((err) => {
+        throw new Error(
+          `add${type}: ${err.message}\n` +
+          `Payload: ${JSON.stringify(payload, null, 2)}`
+        )
+      })
   }
 }
