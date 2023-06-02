@@ -13,14 +13,14 @@ const args = parseArgs(process.argv.slice(2))
 if (args.help) {
   console.log(`Usage: node ${path.basename(process.argv.slice(1, 2).toString())} [OPTION]\n`)
   console.log(`${'--config <inputfilename>'.padEnd(35)} Load YAML config file.`)
-  console.log(`${'--startDate'.padEnd(35)} Start date.`)
-  console.log(`${'--endDate'.padEnd(35)} End date.`)
-  console.log(`${'--interval'.padEnd(35)} Hours or days.`)
+  console.log(`${'--start-date'.padEnd(35)} Start date.`)
+  console.log(`${'--end-date'.padEnd(35)} End date.`)
+  console.log(`${'--interval'.padEnd(35)} Hour or day.`)
   console.log(`${'--dn'.padEnd(35)} Diractory Number.`)
   console.log('')
   process.exit(0)
 }
-
+console.log(args)
 const startDate = args['start-date']
   ? new Date(args['start-date'])
   : new Date(new Date().setHours(0, 0, 0, 0))
@@ -83,6 +83,7 @@ const saveToExcel = async (data) => {
     },
     columns: [
       { name: 'DateTime', totalsRowLabel: 'Totals:', filterButton: true },
+      { name: 'WeekDay', totalsRowLabel: 'Totals:', filterButton: true },
       { name: 'Total', totalsRowFunction: 'sum', filterButton: false },
       { name: 'Answered', totalsRowFunction: 'sum', filterButton: false },
       { name: 'Forwarded To', totalsRowFunction: 'sum', filterButton: false },
@@ -105,6 +106,7 @@ await client.connect()
 const query = `
   SELECT
     d.date || ' ' || RIGHT('0' || ${interval === 'hour' ? `d.${interval}` : '0'}, 2) || ':00:00' AS datetime,
+    to_char(d.date, 'dy') AS weekday,
     SUM(d.total) AS total,
     SUM(d.answered_direct) AS answered_direct,
     SUM(d.forwarded_to) AS forwarded_to,
@@ -158,7 +160,6 @@ const query = `
   GROUP BY d.date, d.${interval}
   ORDER BY d.date, d.${interval};
 `
-
 console.time('query')
 await client.query(query)
   .then(async (result) => {

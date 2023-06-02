@@ -153,7 +153,7 @@ for (const p of phones) {
 
   // Update devices with new e164Mask
   if (fixedLineCounter > 0) {
-    await axl.updatePhone(p.$.uuid.slice(1, -1), { lines: phone.lines })
+    await axl.update('Phone', p.$.uuid.slice(1, -1), { lines: phone.lines })
   }
 
   progressBar.increment()

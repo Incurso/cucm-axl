@@ -49,13 +49,17 @@ export default class AXL {
     `
 
     const res = await axios.post('/axl/', soapBody)
-      .catch((err) => err.response) // Return response error and work with it later
+      .catch((err) => {
+        return err.isAxiosError ? err.response : err
+      }) // Return response error and work with it later
 
     logger.debug(`Method: ${res.request.method}, URL: ${res.request.protocol}//${res.request.host}${res.request.path}, Payload: ${res.data}`)
     logger.debug(`Response: ${res.status}, ${res.data}`)
 
     const soapenvBody = await xml2js.parseStringPromise(res.data, { explicitArray: false, emptyTag: null })
-      .then(data => data['soapenv:Envelope']['soapenv:Body'])
+      .then(data => {
+        return data['soapenv:Envelope']['soapenv:Body']
+      })
 
     const soapenvFault = soapenvBody['soapenv:Fault'] // Grab soap error if there is one
     const nsResponse = soapenvBody[`ns:${methodType}Response`]
@@ -63,7 +67,7 @@ export default class AXL {
     if (soapenvFault) {
       if (soapenvFault.faultstring !== 'No more than 5 EndUsers can be subscribed to receive status for a line appearance.') {
         logger.error(soapenvFault)
-        logger.error('Content:', content)
+        logger.debug('Content:', content)
 
         throw new Error(soapenvFault.faultstring)
       }
@@ -262,17 +266,53 @@ export default class AXL {
   async add (type, payload) {
     const builder = new xml2js.Builder({ headless: true, rootName: type.toLowerCase() })
 
+    if (payload.enableActivationID === 'false') delete payload.enableActivationID
+    if (payload.activationIDStatus === null) delete payload.activationIDStatus
+    if (payload.allowMraMode === 'false') delete payload.allowMraMode
+
     const content = builder.buildObject(payload)
 
     return await this.execute(`add${type}`, type, content)
       .then(() => {
-        logger.info(`Added ${type}: ${JSON.stringify(payload, null, 2)}`)
+        logger.debug(`Added ${type}: ${JSON.stringify(payload, null, 2)}`)
 
         return true
       })
       .catch((err) => {
         throw new Error(
           `add${type}: ${err.message}\n` +
+          `Payload: ${JSON.stringify(payload, null, 2)}`
+        )
+      })
+  }
+
+  async update (type, uuid, payload) {
+    const builder = new xml2js.Builder({ headless: true })
+
+    if (payload.directoryURIs) {
+      const directoryURIs = Array.isArray(payload.directoryURIs.directoryUri)
+        ? payload.directoryURIs.directoryUri.filter(d => d.partition !== 'Directory URI')
+        : [payload.directoryURIs.directoryUri].filter(d => d.partition !== 'Directory URI')
+
+      payload.directoryURIs = { directoryUri: directoryURIs }
+    }
+    if (payload.useEnterpriseAltNum === 'false') delete payload.enterpriseAltNum
+    if (payload.useE164AltNum === 'false') delete payload.e164AltNum
+
+    const content = `
+      <uuid>${uuid}</uuid>
+      ${builder.buildObject(payload)}
+    `.replace(/<root>|<root uuid="{.{36}}">|<\/root>/g, '')
+
+    return await this.execute(`update${type}`, type, content)
+      .then(() => {
+        logger.debug(`Updated ${type}: ${JSON.stringify(payload, null, 2)}`)
+
+        return true
+      })
+      .catch((err) => {
+        throw new Error(
+          `update${type}: ${err.message}\n` +
           `Payload: ${JSON.stringify(payload, null, 2)}`
         )
       })

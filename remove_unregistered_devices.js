@@ -88,7 +88,7 @@ const unregisteredDevices = devices
   // Only include devices with allowed PREFIX
   .filter((device) => allowedPhonePrefixes.includes(device.name.slice(0, 3)))
   // Exclude devices by DESCRIPTION
-  .filter((device) => !excludedDescriptions.includes(device.description))
+  .filter((device) => !excludedDescriptions.filter(ed => device.description.includes(ed)).length)
   // Exclude devices by MODEL
   .filter((device) => !excludedModels.includes(device.model))
   // Exclude devices by DN

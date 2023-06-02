@@ -37,6 +37,7 @@ const count = {
   notincucm: 0,
   ignored_number: 0,
   ignored_department: 0,
+  ignored_user: 0,
   ok: 0
 }
 let counter = 0
@@ -106,6 +107,10 @@ for (const u of users) {
   } else if (config.IGNORED_DEPARTMENTS.includes(u.department)) {
     // Ignored departments
     counterKey = 'ignored_department'
+    reasonCode = config.LOGLEVEL === 'debug' ? chalk.blue(counterKey.toUpperCase()) : null
+  } else if (config.IGNORED_USERS.includes(u.userid)) {
+    // Ignored departments
+    counterKey = 'ignored_user'
     reasonCode = config.LOGLEVEL === 'debug' ? chalk.blue(counterKey.toUpperCase()) : null
   } else {
     // TODO: Check user line association and device control
