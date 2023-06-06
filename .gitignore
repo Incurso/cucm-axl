@@ -134,3 +134,4 @@ config.yml
 *.xlsx
 *.csv
 test*.js
+backup/
