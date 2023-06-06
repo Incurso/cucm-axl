@@ -1,14 +1,12 @@
 import fs from 'fs'
 import path from 'path'
-// import cliProgress from 'cli-progress'
-// import chalk from 'chalk'
 import yaml from 'js-yaml'
 import parseArgs from 'minimist'
 import prompts from 'prompts'
 import { fileURLToPath } from 'url'
 
 import AXL from './utils/cucm-axl.js'
-import Logger from './utils/logger.js'
+import logger from './utils/logger.js'
 
 const args = parseArgs(process.argv.slice(2))
 
@@ -20,7 +18,6 @@ if (args.help) {
   console.log(`${'--help'.padEnd(35)} Displays this help and exit.`)
   console.log(`${'--included-phone-prefixes <ATA,SEP>'.padEnd(35)} Include devices with name prefix.`)
   console.log(`${'--remove-all'.padEnd(35)} Removes all devices found to be expired.`)
-  // console.log(`${'--verbose'.padEnd(35)} Enables verbose output`)
   console.log('')
   process.exit(0)
 }
@@ -28,14 +25,12 @@ if (args.help) {
 // Load config file
 const config = yaml.load(fs.readFileSync(path.resolve(args.config || './config/config.yml'), 'utf8')).CLEANUP_UNREGISTERED_DEVICES
 
-const logger = new Logger(path.basename(fileURLToPath(import.meta.url)).replace(/\.js$/, ''))
-logger.info('Starting...')
+logger.info(`Starting: ${path.basename(fileURLToPath(import.meta.url)).replace(/\.js$/, '')}`)
 
 const axl = new AXL()
 
 // Check if we want to delete all devices from args
 let removeAllDevices = args['remove-all'] // ? true : false
-// const verbose = args.verbose // ? true : false
 
 // Assign values from config
 const phonePrefixes = args['included-phone-prefixes'] ? args['included-phone-prefixes'].split(',') : config.INCLUDED_DEVICES || []
@@ -144,11 +139,20 @@ if (removeAllDevices || removeDevices) {
     }
 
     if (removeAllDevices || removeDevice) {
-      logger.backup(await axl.get('Phone', { name: device.name }))
+      const phone = await axl.get('Phone', { name: device.name })
 
-      await axl.removePhone(device.pkid)
+      // Write backup of phone before it is removed
+      fs.writeFile(
+        `./backup/${device.name}.${new Date().toISOString().slice(0, 10)}.bak`,
+        JSON.stringify(phone),
+        { flag: 'w' },
+        async (err) => {
+          if (err) throw err
 
-      logger.info(`Removed ${device.name}`)
+          // If writing is successful remove phone
+          await axl.removePhone(device.pkid)
+          logger.info(`Removed ${device.name}`)
+        })
     }
   }
 }

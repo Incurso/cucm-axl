@@ -8,15 +8,16 @@ import stripAnsi from 'strip-ansi'
 import { fileURLToPath } from 'url'
 
 import AXL from './utils/cucm-axl.js'
-import Logger from './utils/logger.js'
+import logger from './utils/logger.js'
+//import Logger from './utils/logger.js'
 
 const args = parseArgs(process.argv.slice(2))
 
 // Load config file
 const config = yaml.load(await fs.readFile(path.resolve(args.config || './config/config.yml'), 'utf8')).FIX_USER_LINE_ASSOCIATION
 
-const logger = new Logger(path.basename(fileURLToPath(import.meta.url)).replace(/\.js$/, ''))
-logger.info('Starting...')
+//const logger = new Logger(path.basename(fileURLToPath(import.meta.url)).replace(/\.js$/, ''))
+logger.info(`Starting: ${path.basename(fileURLToPath(import.meta.url)).replace(/\.js$/, '')}`)
 
 console.time('Execution time')
 
@@ -47,12 +48,15 @@ const messages = []
 
 const users = await axl.list(
   'User',
-  { userid: '%' },
+  { userid: 'einar%' },
   ['userid', 'department', 'status', 'telephoneNumber']
 )
   .catch((err) => {
-    logger.error(err.message)
+    logger.error('Connection Error:', err)
+    process.exit(1)
   })
+
+logger.info(`Found ${users.length} users`)
 
 // Get route plans for directory number
 const routePlans = await axl.list(
@@ -61,7 +65,8 @@ const routePlans = await axl.list(
   ['dnOrPattern', 'partition', 'type', 'routeDetail']
 )
   .catch((err) => {
-    logger.error(err.message)
+    logger.error('Connection Error:', err)
+    process.exit(1)
   })
 
 // Sort usersalphabeticaly by userid
@@ -78,7 +83,8 @@ for (const u of users) {
 
   let user = await axl.get('User', { userid: u.userid })
     .catch((err) => {
-      logger.error(err.message)
+      logger.error('Connection Error:', err)
+      process.exit(1)
     })
 
   const userDevices = user.associatedDevices
@@ -160,12 +166,14 @@ for (const u of users) {
         associatedDevices: user.associatedDevices
       })
         .catch((err) => {
-          logger.error(err.message)
+          logger.error('Connection Error:', err)
+          process.exit(1)
         })
 
       user = await axl.get('User', { userid: u.userid })
         .catch((err) => {
-          logger.error(err.message)
+          logger.error('Connection Error:', err)
+          process.exit(1)
         })
     }
 
@@ -230,7 +238,8 @@ for (const u of users) {
           lineAppearanceAssociationForPresences: user.lineAppearanceAssociationForPresences
         })
           .catch((err) => {
-            logger.error(err.message)
+            logger.error('Connection Error:', err)
+            process.exit(1)
           })
       }
     }
@@ -280,6 +289,7 @@ const report = {
 }
 
 // Display statistics
+/*
 const body = []
 
 for (const item of Object.values(report)) {
@@ -289,9 +299,9 @@ for (const item of Object.values(report)) {
   }
 }
 
-logger.info(`\n${body.join('\n')}`)
+//logger.info(`${body.join('\n')}`)
 
-logger.info(`\n    Found ${users.length} users
+logger.info(`Found ${users.length} users
 
 ${String('type').padStart(22, ' ')} | count
     ${'-'.repeat(30)}
@@ -299,5 +309,10 @@ ${Object.entries(count).map(([key, value]) => `${String(key).padStart(22, ' ')} 
     ${'-'.repeat(30)}
 ${String('total').padStart(22, ' ')} | ${Object.values(count).reduce((a, b) => a + b)}
 `)
+*/
+
+// Display statistics
+logger.info('Statistics', { counters: count })
 
 console.timeEnd('Execution time')
+logger.info(`Ended: ${path.basename(fileURLToPath(import.meta.url)).replace(/\.js$/, '')}`)
