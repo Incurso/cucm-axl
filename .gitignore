@@ -132,4 +132,5 @@ config.yml
 
 # other files
 *.xlsx
+*.csv
 test*.js
