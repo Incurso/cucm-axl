@@ -11,7 +11,6 @@ import logger from './utils/logger.js'
 
 logger.info(`Starting: ${path.basename(fileURLToPath(import.meta.url)).replace(/\.js$/, '')}`)
 
-
 // Load config file
 const args = parseArgs(process.argv.slice(2))
 const config = yaml.load(await fs.readFile(path.resolve(args.config || './config/config.yml'), 'utf8')).CHECK_LINE_MASK
@@ -169,4 +168,3 @@ progressBar.stop()
 logger.info('Statistics', { counters: count })
 
 logger.info(`Ended: ${path.basename(fileURLToPath(import.meta.url)).replace(/\.js$/, '')}`)
-
