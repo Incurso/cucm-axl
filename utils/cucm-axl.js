@@ -7,14 +7,9 @@ import axios from 'axios'
 import https from 'https'
 import xml2js from 'xml2js'
 import parseArgs from 'minimist'
-import { fileURLToPath } from 'url'
 
 import { decrypt } from './crypto.js'
 import logger from './logger.js'
-
-//import Logger from './logger.js'
-
-//const logger = new Logger(path.basename(fileURLToPath(import.meta.url)).replace(/\.js$/, ''))
 
 const args = parseArgs(process.argv.slice(2))
 
@@ -51,21 +46,16 @@ export default class AXL {
     `
 
     logger.debug(`${methodType}`, { content: content.trim() })
-  
+
     const res = await axios.post('/axl/', soapBody)
       .catch((error) => {
-        //console.log(err.isAxiosError, err.response)
         if (error.isAxiosError) {
           return error.response
         } else {
           logger.error(`${methodType}`, { content: content.trim(), error })
           throw error
         }
-        //return err.isAxiosError ? err.response : err
       }) // Return response error and work with it later
-
-    //logger.debug(`Method: ${res.request.method}, URL: ${res.request.protocol}//${res.request.host}${res.request.path}, Payload: ${res.data}`)
-    //logger.debug(`Response: ${res.status}, ${res.data}`)
 
     const soapenvBody = await xml2js.parseStringPromise(res.data, { explicitArray: false, emptyTag: null })
       .then(data => {

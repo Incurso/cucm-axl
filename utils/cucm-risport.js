@@ -40,7 +40,7 @@ export default class RisPort {
     `
 
     const res = await axios.post('/realtimeservice2/services/RISService70/', soapBody)
-      .catch((err) => { 
+      .catch((err) => {
         logger.log(err)
         throw new Error(err.message)
       })
