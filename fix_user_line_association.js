@@ -9,14 +9,12 @@ import { fileURLToPath } from 'url'
 
 import AXL from './utils/cucm-axl.js'
 import logger from './utils/logger.js'
-//import Logger from './utils/logger.js'
 
 const args = parseArgs(process.argv.slice(2))
 
 // Load config file
 const config = yaml.load(await fs.readFile(path.resolve(args.config || './config/config.yml'), 'utf8')).FIX_USER_LINE_ASSOCIATION
 
-//const logger = new Logger(path.basename(fileURLToPath(import.meta.url)).replace(/\.js$/, ''))
 logger.info(`Starting: ${path.basename(fileURLToPath(import.meta.url)).replace(/\.js$/, '')}`)
 
 console.time('Execution time')
@@ -48,7 +46,7 @@ const messages = []
 
 const users = await axl.list(
   'User',
-  { userid: 'einar%' },
+  { userid: '%' },
   ['userid', 'department', 'status', 'telephoneNumber']
 )
   .catch((err) => {
@@ -264,52 +262,6 @@ for (const u of users) {
 progressBar.update(counter)
 // Stop the counter
 progressBar.stop()
-
-const report = {
-  NO_NUMBER: {
-    title: 'Number not in Call Manager:',
-    items: messages.filter(m => m.reason === 'NO_NUMBER').map(m => `User: ${m.user}, Tel: ${m.tel}`)
-  },
-  NO_DEVICE: {
-    title: 'Number not assigned to a valid device:',
-    items: messages.filter(m => m.reason === 'NO_DEVICE').map(m => `User: ${m.user}, Tel: ${m.tel}`)
-  },
-  INVALID: {
-    title: 'Invalid directory number',
-    items: messages.filter(m => m.reason === 'INVALID').map(m => `User: ${m.user}, Tel: ${m.tel}`)
-  },
-  ASSOCIATED: {
-    title: 'New device/line association',
-    items: messages.filter(m => m.reason === 'ASSOCIATED').map(m => `User: ${m.user}, Tel: ${m.tel}`)
-  },
-  FIXED: {
-    title: 'Fixed device/line association',
-    items: messages.filter(m => m.reason === 'FIXED').map(m => `User: ${m.user}, Tel: ${m.tel}`)
-  }
-}
-
-// Display statistics
-/*
-const body = []
-
-for (const item of Object.values(report)) {
-  if (item.items.length) {
-    body.push(`${' '.repeat(4)}${item.title}`)
-    body.push(item.items.map(i => `${' '.repeat(8)}${i}`).join('\n'))
-  }
-}
-
-//logger.info(`${body.join('\n')}`)
-
-logger.info(`Found ${users.length} users
-
-${String('type').padStart(22, ' ')} | count
-    ${'-'.repeat(30)}
-${Object.entries(count).map(([key, value]) => `${String(key).padStart(22, ' ')} | ${value}`).join('\n')}
-    ${'-'.repeat(30)}
-${String('total').padStart(22, ' ')} | ${Object.values(count).reduce((a, b) => a + b)}
-`)
-*/
 
 // Display statistics
 logger.info('Statistics', { counters: count })
