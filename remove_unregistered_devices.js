@@ -92,6 +92,7 @@ const unregisteredDevices = devices
   .filter((device) => !excludedDevices.includes(device.name))
   // Exclude devices by LAST_SEEN_LIMIT
   .filter((device) => ((Date.now() / 1000) - device.lastseen) > cutoffMark * 24 * 60 * 60)
+  // TODO: remove duplicate devices
 
 // Print out a list of devices that were found
 logger.info(`Devices unregistered for more than ${cutoffMark} days`)
