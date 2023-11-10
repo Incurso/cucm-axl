@@ -11,7 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "axios": "^0.24.0",
+    "axios": "^1.6.0",
     "bunyan": "^1.8.15",
     "chalk": "^5.0.0",
     "cli-progress": "^3.9.0",
